@@ -432,6 +432,87 @@
 
     .hidden { display: none !important; }
 
+    /* ── AUTH OVERLAY ────────────────────────────── */
+    .auth-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(6, 14, 27, 0.88);
+      backdrop-filter: blur(24px);
+      padding: 24px;
+    }
+
+    .auth-card {
+      width: 100%;
+      max-width: 380px;
+      background: var(--card);
+      border: 1px solid var(--border-blue);
+      border-radius: 14px;
+      padding: 36px 32px;
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(112, 85, 232, 0.05);
+    }
+
+    .auth-logo {
+      height: 40px;
+      width: auto;
+      display: block;
+      margin: 0 auto 22px;
+    }
+
+    .auth-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+      letter-spacing: -0.01em;
+    }
+
+    .auth-hint {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 24px;
+      line-height: 1.55;
+    }
+
+    #auth-form { display: grid; gap: 14px; text-align: left; }
+
+    #auth-form input[type="text"],
+    #auth-form input[type="password"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: var(--white);
+      font: inherit;
+      font-size: 0.95rem;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      width: 100%;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    #auth-form input:focus {
+      outline: none;
+      border-color: var(--blue);
+      background: var(--bg2);
+    }
+
+    .auth-error {
+      font-size: 0.82rem;
+      color: var(--red);
+      background: var(--red-dim);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      border-radius: 6px;
+      padding: 9px 12px;
+      text-align: center;
+    }
+
+    body.locked { overflow: hidden; }
+
     /* ── FOOTER ──────────────────────────────────── */
     footer {
       position: relative;
@@ -469,6 +550,27 @@
 <body>
 
 <canvas id="bg-canvas" aria-hidden="true"></canvas>
+
+<!-- AUTH OVERLAY -->
+<div id="auth-overlay" class="auth-overlay" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+  <div class="auth-card">
+    <img class="auth-logo" src="Affixos-logo.png" alt="Affixos" />
+    <h2 class="auth-title" id="auth-title">Sign in to continue</h2>
+    <p class="auth-hint">Enter your operator credentials to access the configurator.</p>
+    <form id="auth-form" autocomplete="on">
+      <label>
+        Username
+        <input type="text" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <div id="auth-error" class="auth-error hidden">Invalid credentials.</div>
+      <button type="submit" class="btn btn-primary btn-large">Sign in</button>
+    </form>
+  </div>
+</div>
 
 <nav>
   <a href="#" class="nav-logo">
@@ -807,6 +909,57 @@
     $('connect').disabled = true;
     setStatus('Web Bluetooth unavailable.', 'error');
   }
+
+  // ── AUTH GATE ───────────────────────────────────────────────────────────────
+  // Note: this is a client-side gate, not real security. The salted digest and
+  // salt live in the page source. It keeps casual visitors out of the BLE form;
+  // anyone reading the source can derive the password. If real auth is needed,
+  // put this behind a server.
+  const AUTH_SALT = 'affixos-uwb-salt-v1';
+  const AUTH_DIGEST = '55fb896737c258a8abc6788dd2f1c95dd626532851f8b5ff323455be94714421';
+  const AUTH_STORAGE_KEY = 'affixos-configurator-authed';
+
+  async function sha256Hex(s) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  function unlockUi() {
+    $('auth-overlay').classList.add('hidden');
+    document.body.classList.remove('locked');
+  }
+
+  function lockUi() {
+    $('auth-overlay').classList.remove('hidden');
+    document.body.classList.add('locked');
+    setTimeout(() => $('auth-form').username.focus(), 50);
+  }
+
+  $('auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    const u = f.username.value.trim();
+    const p = f.password.value;
+    const digest = await sha256Hex(`${u}:${p}:${AUTH_SALT}`);
+    if (digest === AUTH_DIGEST) {
+      try { sessionStorage.setItem(AUTH_STORAGE_KEY, '1'); } catch {}
+      $('auth-error').classList.add('hidden');
+      f.reset();
+      unlockUi();
+    } else {
+      $('auth-error').classList.remove('hidden');
+      f.password.value = '';
+      f.password.focus();
+    }
+  });
+
+  // Stay signed in for the tab session; refresh doesn't kick you out.
+  let alreadyAuthed = false;
+  try { alreadyAuthed = sessionStorage.getItem(AUTH_STORAGE_KEY) === '1'; } catch {}
+  if (alreadyAuthed) unlockUi();
+  else lockUi();
 
   // ── SUBTLE PARTICLE BACKGROUND ──────────────────────────────────────────────
   (function () {
