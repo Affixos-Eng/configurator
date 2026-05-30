@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Affixos — Tag Configurator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="icon" href="Affixos-logo.png" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #060E1B;
+      --bg2: #0B1929;
+      --card: rgba(11, 25, 45, 0.8);
+      --border: rgba(255, 255, 255, 0.07);
+      --border-blue: rgba(112, 85, 232, 0.25);
+      --blue: #7055E8;
+      --blue-hover: #8B72FF;
+      --blue-dim: rgba(112, 85, 232, 0.12);
+      --green: #34D399;
+      --green-dim: rgba(52, 211, 153, 0.12);
+      --red: #F87171;
+      --red-dim: rgba(248, 113, 113, 0.12);
+      --white: #EFF6FF;
+      --muted: rgba(185, 210, 255, 0.55);
+      --dim: rgba(185, 210, 255, 0.32);
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--white);
+      min-height: 100dvh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #bg-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ── NAV ─────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 48px;
+      height: 64px;
+      background: rgba(6, 14, 27, 0.88);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo { display: flex; align-items: center; text-decoration: none; }
+    .nav-logo img { height: 52px; width: auto; display: block; }
+
+    .nav-tag {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    /* ── MAIN ────────────────────────────────────── */
+    main {
+      position: relative;
+      z-index: 2;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 120px 24px 80px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--blue);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .eyebrow::before {
+      content: '';
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--blue);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    h1 {
+      font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.2;
+      margin-bottom: 14px;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--muted);
+      max-width: 520px;
+      margin-bottom: 32px;
+    }
+
+    /* ── STATUS BAR ──────────────────────────────── */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+      backdrop-filter: blur(12px);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--dim);
+      flex-shrink: 0;
+    }
+
+    .status.ok { color: var(--green); border-color: rgba(52, 211, 153, 0.3); }
+    .status.ok .status-dot {
+      background: var(--green);
+      box-shadow: 0 0 8px rgba(52, 211, 153, 0.5);
+      animation: breathe 2s ease-in-out infinite;
+    }
+
+    .status.error { color: var(--red); border-color: rgba(248, 113, 113, 0.3); }
+    .status.error .status-dot { background: var(--red); box-shadow: 0 0 8px rgba(248, 113, 113, 0.5); }
+
+    .status.busy { color: var(--blue); border-color: var(--border-blue); }
+    .status.busy .status-dot {
+      background: var(--blue);
+      box-shadow: 0 0 8px rgba(112, 85, 232, 0.5);
+      animation: breathe 1s ease-in-out infinite;
+    }
+
+    @keyframes breathe {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* ── BUTTONS ─────────────────────────────────── */
+    .btn {
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 11px 22px;
+      border-radius: 6px;
+      cursor: pointer;
+      border: none;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s, border-color 0.2s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:hover:not(:disabled) { transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--blue-hover);
+      box-shadow: 0 8px 24px rgba(112, 85, 232, 0.3);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--white);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-danger {
+      background: transparent;
+      color: var(--red);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: var(--red-dim);
+      border-color: rgba(248, 113, 113, 0.5);
+    }
+
+    .btn-large {
+      font-size: 0.95rem;
+      padding: 14px 28px;
+      width: 100%;
+    }
+
+    .btn-icon { width: 16px; height: 16px; flex-shrink: 0; }
+
+    /* ── CONNECT VIEW ────────────────────────────── */
+    .connect-card {
+      background: var(--card);
+      border: 1px solid var(--border-blue);
+      border-radius: 14px;
+      padding: 40px 32px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(112, 85, 232, 0.05);
+      text-align: center;
+    }
+
+    .connect-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--blue-dim);
+      border: 1px solid var(--border-blue);
+      border-radius: 14px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .connect-icon svg { width: 28px; height: 28px; color: var(--blue); }
+
+    .connect-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .connect-hint {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 28px;
+      max-width: 420px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .countdown-row {
+      margin-top: 16px;
+      font-size: 0.78rem;
+      color: var(--dim);
+      letter-spacing: 0.04em;
+    }
+
+    .countdown-row .accent { color: var(--blue); font-weight: 600; }
+
+    /* ── DEVICE PANEL ────────────────────────────── */
+    .device-panel {
+      background: var(--card);
+      border: 1px solid var(--border-blue);
+      border-radius: 14px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+    }
+
+    .device-header {
+      padding: 24px 28px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .device-led {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 16px rgba(52, 211, 153, 0.5);
+      animation: ledBlink 0.5s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    .device-led.tag { background: var(--red); box-shadow: 0 0 16px rgba(248, 113, 113, 0.5); }
+
+    @keyframes ledBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    .device-header-text { flex: 1; min-width: 0; }
+
+    .device-name {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 4px;
+      letter-spacing: -0.01em;
+    }
+
+    .device-meta {
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .role-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-radius: 4px;
+    }
+    .role-badge.tag { color: var(--red); background: var(--red-dim); border: 1px solid rgba(248, 113, 113, 0.3); }
+    .role-badge.anchor { color: var(--green); background: var(--green-dim); border: 1px solid rgba(52, 211, 153, 0.3); }
+
+    .device-body { padding: 28px; }
+
+    /* ── FORM ────────────────────────────────────── */
+    form { display: grid; gap: 18px; }
+
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    input[type="number"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: var(--white);
+      font: inherit;
+      font-size: 0.95rem;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    input[type="number"]:focus {
+      outline: none;
+      border-color: var(--blue);
+      background: var(--bg2);
+    }
+
+    input[type="number"]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .hint {
+      font-size: 0.7rem;
+      font-weight: 400;
+      color: var(--dim);
+      text-transform: none;
+      letter-spacing: 0;
+      line-height: 1.4;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .form-actions .btn { flex: 1; min-width: 140px; }
+
+    .divider {
+      border-top: 1px solid var(--border);
+      margin: 24px 0;
+    }
+
+    .device-section-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 12px;
+    }
+
+    .danger-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .danger-actions .btn { flex: 1; min-width: 130px; }
+
+    /* ── UNSUPPORTED BANNER ──────────────────────── */
+    .unsupported {
+      background: var(--red-dim);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      color: var(--red);
+      padding: 14px 18px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .unsupported code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+      color: var(--white);
+    }
+
+    .hidden { display: none !important; }
+
+    /* ── FOOTER ──────────────────────────────────── */
+    footer {
+      position: relative;
+      z-index: 2;
+      border-top: 1px solid var(--border);
+      padding: 24px 48px;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--dim);
+    }
+
+    footer a { color: var(--blue); text-decoration: none; }
+    footer a:hover { color: var(--blue-hover); }
+
+    /* ── RESPONSIVE ──────────────────────────────── */
+    @media (max-width: 640px) {
+      nav { padding: 0 20px; }
+      .nav-tag { display: none; }
+      main { padding: 96px 16px 60px; }
+      .connect-card { padding: 32px 22px; }
+      .device-header { padding: 20px 22px 18px; }
+      .device-body { padding: 22px; }
+      .field-row { grid-template-columns: 1fr; }
+      footer { padding: 24px 20px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="bg-canvas" aria-hidden="true"></canvas>
+
+<nav>
+  <a href="#" class="nav-logo">
+    <img src="Affixos-logo.png" alt="Affixos" />
+  </a>
+  <span class="nav-tag">Tag Configurator</span>
+</nav>
+
+<main>
+  <span class="eyebrow">BLE Configuration</span>
+  <h1>Configure your UWB device</h1>
+  <p class="subtitle">
+    Reboot the tag or anchor, then connect within the 15-second window.
+    The device LED will blink while connected to confirm pairing.
+  </p>
+
+  <div id="unsupported" class="unsupported hidden">
+    Web Bluetooth is unavailable. Use desktop Chrome, Edge, or Opera served over
+    <code>https://</code> or <code>localhost</code>.
+  </div>
+
+  <div id="status" class="status">
+    <span class="status-dot"></span>
+    <span id="status-text">Ready to scan.</span>
+  </div>
+
+  <!-- CONNECT VIEW -->
+  <div id="connect-view" class="connect-card">
+    <div class="connect-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7 7l10 10-5 5V2l5 5L7 17"/>
+      </svg>
+    </div>
+    <h2 class="connect-title">Scan for nearby devices</h2>
+    <p class="connect-hint">
+      Reboot your UWB tag or anchor, then press the button below within 15 seconds.
+      Pick the matching <code style="color:var(--blue)">UWB-T-…</code> or
+      <code style="color:var(--green)">UWB-A-…</code> entry in the browser dialog.
+    </p>
+    <button id="connect" class="btn btn-primary btn-large">
+      <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M7 7l10 10-5 5V2l5 5L7 17"/>
+      </svg>
+      Scan &amp; connect
+    </button>
+  </div>
+
+  <!-- DEVICE PANEL -->
+  <section id="device" class="device-panel hidden">
+    <div class="device-header">
+      <div id="device-led" class="device-led" aria-hidden="true"></div>
+      <div class="device-header-text">
+        <div class="device-name" id="device-name"></div>
+        <div class="device-meta">
+          <span id="fw-version"></span>
+          <span id="role-badge" class="role-badge"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="device-body">
+      <div class="device-section-label">Settings</div>
+
+      <form id="settings-form">
+        <div class="field-row">
+          <label>
+            Device ID
+            <input type="number" name="device_id" min="1" max="65534" required>
+            <span class="hint" id="device-id-hint">1–1000 tag · 1001 gateway · 1002+ relay anchor</span>
+          </label>
+          <label>
+            Network ID
+            <input type="number" name="network_id" min="1" max="255" required>
+            <span class="hint">1–255</span>
+          </label>
+        </div>
+
+        <label id="rate-field">
+          Update rate (Hz)
+          <input type="number" name="update_rate_hz" min="1" max="10">
+          <span class="hint">1–10 Hz. Tag-only.</span>
+        </label>
+
+        <div id="position-fields" class="field-row">
+          <label id="x-field">
+            X position (m)
+            <input type="number" name="x_m" min="-32768" max="32767" step="1">
+          </label>
+          <label id="y-field">
+            Y position (m)
+            <input type="number" name="y_m" min="-32768" max="32767" step="1">
+          </label>
+        </div>
+
+        <label>
+          Z position (m)
+          <input type="number" name="z_m" min="-32768" max="32767" step="1">
+          <span class="hint" id="z-hint">Anchor Z, or tag carry height (used in 2D fallback).</span>
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M5 13l4 4L19 7"/>
+            </svg>
+            Save settings
+          </button>
+          <button type="button" class="btn btn-secondary" id="reload">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 12a9 9 0 0 1 15.5-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.4L3 16"/><path d="M3 21v-5h5"/>
+            </svg>
+            Reload
+          </button>
+        </div>
+      </form>
+
+      <div class="divider"></div>
+
+      <div class="device-section-label">Device control</div>
+      <div class="danger-actions">
+        <button type="button" class="btn btn-secondary" id="reboot">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+          </svg>
+          Reboot
+        </button>
+        <button type="button" class="btn btn-danger" id="factory-reset">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          Factory reset
+        </button>
+        <button type="button" class="btn btn-secondary" id="disconnect">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+          Disconnect
+        </button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  Affixos UWB IPS Tag Configurator · BLE service
+  <code style="color:var(--muted);font-size:0.75rem">8b7e0001-…</code>
+</footer>
+
+<script>
+  // ── BLE CONSTANTS ───────────────────────────────────────────────────────────
+  const SERVICE_UUID  = '8b7e0001-2c15-4f3a-92c4-bdc3a17e5e21';
+  const FW_UUID       = '8b7e0002-2c15-4f3a-92c4-bdc3a17e5e21';
+  const SETTINGS_UUID = '8b7e0003-2c15-4f3a-92c4-bdc3a17e5e21';
+  const APPLY_UUID    = '8b7e0004-2c15-4f3a-92c4-bdc3a17e5e21';
+  const ROLE_UUID     = '8b7e0005-2c15-4f3a-92c4-bdc3a17e5e21';
+
+  const APPLY_REBOOT = 0x01;
+  const APPLY_FACTORY_RESET = 0x02;
+
+  const $ = (id) => document.getElementById(id);
+
+  let device = null;
+  let settingsChar = null;
+  let applyChar = null;
+  let currentRole = null;
+
+  function setStatus(text, kind = '') {
+    $('status-text').textContent = text;
+    $('status').className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function showDevicePanel(show) {
+    $('device').classList.toggle('hidden', !show);
+    $('connect-view').classList.toggle('hidden', show);
+  }
+
+  function applyRoleToUi(role) {
+    const isTag = role === 0;
+    $('rate-field').classList.toggle('hidden', !isTag);
+    $('position-fields').classList.toggle('hidden', isTag);
+
+    const badge = $('role-badge');
+    badge.textContent = isTag ? 'Tag' : 'Anchor';
+    badge.className = 'role-badge ' + (isTag ? 'tag' : 'anchor');
+
+    const led = $('device-led');
+    led.classList.toggle('tag', isTag);
+  }
+
+  function decodeSettings(view) {
+    return {
+      device_id:      view.getUint16(0, true),
+      network_id:     view.getUint8(2),
+      role:           view.getUint8(3),
+      update_rate_hz: view.getUint8(4),
+      reserved:       view.getUint8(5),
+      x_m:            view.getInt16(6, true),
+      y_m:            view.getInt16(8, true),
+      z_m:            view.getInt16(10, true),
+    };
+  }
+
+  function fillForm(s) {
+    const f = $('settings-form');
+    f.device_id.value = s.device_id;
+    f.network_id.value = s.network_id;
+    f.update_rate_hz.value = s.update_rate_hz || 1;
+    f.x_m.value = s.x_m;
+    f.y_m.value = s.y_m;
+    f.z_m.value = s.z_m;
+  }
+
+  function encodeSettings(form) {
+    const buf = new ArrayBuffer(12);
+    const dv = new DataView(buf);
+    dv.setUint16(0, +form.device_id.value, true);
+    dv.setUint8(2, +form.network_id.value);
+    dv.setUint8(3, 0); // role ignored by firmware
+    dv.setUint8(4, +form.update_rate_hz.value || 0);
+    dv.setUint8(5, 0); // reserved
+    dv.setInt16(6, +form.x_m.value || 0, true);
+    dv.setInt16(8, +form.y_m.value || 0, true);
+    dv.setInt16(10, +form.z_m.value || 0, true);
+    return buf;
+  }
+
+  function describeAttError(err) {
+    const msg = (err && err.message) || String(err);
+    if (/0x0d|InvalidAttributeLength/i.test(msg)) return 'Invalid length (firmware expects 12 bytes).';
+    if (/0x07|InvalidOffset/i.test(msg))         return 'Invalid offset.';
+    if (/0x13|ValueNotAllowed|NotAllowed/i.test(msg)) return 'Value out of range (check device_id, network_id, rate).';
+    if (/0x0e|UnlikelyError/i.test(msg))         return 'NVS write failure on the device.';
+    return msg;
+  }
+
+  async function connect() {
+    if (!navigator.bluetooth) return;
+    try {
+      setStatus('Requesting device…', 'busy');
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [SERVICE_UUID] }],
+      });
+      device.addEventListener('gattserverdisconnected', onDisconnected);
+
+      setStatus(`Connecting to ${device.name || 'device'}…`, 'busy');
+      const server = await device.gatt.connect();
+      const svc = await server.getPrimaryService(SERVICE_UUID);
+
+      const fwChar = await svc.getCharacteristic(FW_UUID);
+      const roleChar = await svc.getCharacteristic(ROLE_UUID);
+      settingsChar = await svc.getCharacteristic(SETTINGS_UUID);
+      applyChar = await svc.getCharacteristic(APPLY_UUID);
+
+      const fwView = await fwChar.readValue();
+      const fwStr = new TextDecoder().decode(fwView);
+      const roleView = await roleChar.readValue();
+      currentRole = roleView.getUint8(0);
+
+      $('device-name').textContent = device.name || '(unnamed)';
+      $('fw-version').textContent = fwStr;
+      applyRoleToUi(currentRole);
+
+      const settings = decodeSettings(await settingsChar.readValue());
+      fillForm(settings);
+
+      showDevicePanel(true);
+      setStatus('Connected. Device LED is blinking.', 'ok');
+    } catch (err) {
+      if (err.name === 'NotFoundError') {
+        setStatus('No device selected.');
+      } else {
+        setStatus('Connect failed: ' + (err.message || err), 'error');
+      }
+    }
+  }
+
+  async function saveSettings(e) {
+    e.preventDefault();
+    if (!settingsChar) return;
+    try {
+      setStatus('Writing settings…', 'busy');
+      const buf = encodeSettings(e.target);
+      await settingsChar.writeValueWithResponse(buf);
+      setStatus('Saved. Disconnect to apply, or hit Reboot now.', 'ok');
+    } catch (err) {
+      setStatus('Write rejected: ' + describeAttError(err), 'error');
+    }
+  }
+
+  async function reloadSettings() {
+    if (!settingsChar) return;
+    try {
+      const settings = decodeSettings(await settingsChar.readValue());
+      fillForm(settings);
+      setStatus('Reloaded current settings from device.', 'ok');
+    } catch (err) {
+      setStatus('Read failed: ' + (err.message || err), 'error');
+    }
+  }
+
+  async function sendApply(value, label) {
+    if (!applyChar) return;
+    try {
+      await applyChar.writeValueWithResponse(new Uint8Array([value]));
+      setStatus(label + ' sent. Device will disconnect.', 'ok');
+    } catch (err) {
+      setStatus(label + ' failed: ' + describeAttError(err), 'error');
+    }
+  }
+
+  function disconnect() {
+    if (device && device.gatt.connected) device.gatt.disconnect();
+  }
+
+  function onDisconnected() {
+    settingsChar = null;
+    applyChar = null;
+    currentRole = null;
+    showDevicePanel(false);
+    setStatus('Disconnected. Reboot the device to reconnect.');
+  }
+
+  $('connect').addEventListener('click', connect);
+  $('settings-form').addEventListener('submit', saveSettings);
+  $('reload').addEventListener('click', reloadSettings);
+  $('disconnect').addEventListener('click', disconnect);
+  $('reboot').addEventListener('click', () => sendApply(APPLY_REBOOT, 'Reboot'));
+  $('factory-reset').addEventListener('click', () => {
+    if (confirm('Factory reset will wipe persisted settings and reboot. Continue?')) {
+      sendApply(APPLY_FACTORY_RESET, 'Factory reset');
+    }
+  });
+
+  if (!navigator.bluetooth) {
+    $('unsupported').classList.remove('hidden');
+    $('connect').disabled = true;
+    setStatus('Web Bluetooth unavailable.', 'error');
+  }
+
+  // ── SUBTLE PARTICLE BACKGROUND ──────────────────────────────────────────────
+  (function () {
+    if (typeof THREE === 'undefined') return;
+    const canvas = $('bg-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 200);
+    camera.position.z = 40;
+
+    const count = 280;
+    const positions = new Float32Array(count * 3);
+    const colors = new Float32Array(count * 3);
+    const velocity = new Float32Array(count * 3);
+
+    const c1 = new THREE.Color(0x7055E8);
+    const c2 = new THREE.Color(0x93C5FD);
+    const c3 = new THREE.Color(0xFFFFFF);
+
+    for (let i = 0; i < count; i++) {
+      positions[i * 3]     = (Math.random() - 0.5) * 80;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 50;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * 30;
+
+      velocity[i * 3]     = (Math.random() - 0.5) * 0.004;
+      velocity[i * 3 + 1] = Math.random() * 0.005 + 0.001;
+      velocity[i * 3 + 2] = (Math.random() - 0.5) * 0.002;
+
+      const t = Math.random();
+      const c = t < 0.5 ? c1.clone().lerp(c2, t * 2) : c2.clone().lerp(c3, (t - 0.5) * 2);
+      colors[i * 3]     = c.r;
+      colors[i * 3 + 1] = c.g;
+      colors[i * 3 + 2] = c.b;
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const mat = new THREE.PointsMaterial({
+      size: 0.12,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.35,
+    });
+
+    scene.add(new THREE.Points(geo, mat));
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const pos = geo.attributes.position.array;
+      for (let i = 0; i < count; i++) {
+        pos[i * 3]     += velocity[i * 3];
+        pos[i * 3 + 1] += velocity[i * 3 + 1];
+        pos[i * 3 + 2] += velocity[i * 3 + 2];
+        if (pos[i * 3 + 1] >  26) pos[i * 3 + 1] = -26;
+        if (pos[i * 3]     >  42) pos[i * 3]     = -42;
+        if (pos[i * 3]     < -42) pos[i * 3]     =  42;
+      }
+      geo.attributes.position.needsUpdate = true;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  })();
+</script>
+</body>
+</html>
