@@ -649,9 +649,9 @@
         </div>
 
         <label id="rate-field">
-          Update rate (Hz)
-          <input type="number" name="update_rate_hz" min="1" max="10">
-          <span class="hint">1–10 Hz. Tag-only.</span>
+          Update interval (s)
+          <input type="number" name="update_interval_sec" min="1" max="3600">
+          <span class="hint">1–3600 s. Tag-only. Larger = lower average power. Default 60 s.</span>
         </label>
 
         <div id="position-fields" class="field-row">
@@ -762,14 +762,16 @@
 
   function decodeSettings(view) {
     return {
-      device_id:      view.getUint16(0, true),
-      network_id:     view.getUint8(2),
-      role:           view.getUint8(3),
-      update_rate_hz: view.getUint8(4),
-      reserved:       view.getUint8(5),
-      x_m:            view.getInt16(6, true),
-      y_m:            view.getInt16(8, true),
-      z_m:            view.getInt16(10, true),
+      device_id:           view.getUint16(0, true),
+      network_id:          view.getUint8(2),
+      role:                view.getUint8(3),
+      // bytes 4-5: uint16 little-endian update_interval_sec.
+      // (Was uint8 update_rate_hz + uint8 reserved before firmware
+      // power-stage1 — wire format bumped to support 1..3600 s intervals.)
+      update_interval_sec: view.getUint16(4, true),
+      x_m:                 view.getInt16(6, true),
+      y_m:                 view.getInt16(8, true),
+      z_m:                 view.getInt16(10, true),
     };
   }
 
@@ -777,7 +779,7 @@
     const f = $('settings-form');
     f.device_id.value = s.device_id;
     f.network_id.value = s.network_id;
-    f.update_rate_hz.value = s.update_rate_hz || 1;
+    f.update_interval_sec.value = s.update_interval_sec || 60;
     f.x_m.value = s.x_m;
     f.y_m.value = s.y_m;
     f.z_m.value = s.z_m;
@@ -789,8 +791,7 @@
     dv.setUint16(0, +form.device_id.value, true);
     dv.setUint8(2, +form.network_id.value);
     dv.setUint8(3, 0); // role ignored by firmware
-    dv.setUint8(4, +form.update_rate_hz.value || 0);
-    dv.setUint8(5, 0); // reserved
+    dv.setUint16(4, +form.update_interval_sec.value || 60, true);
     dv.setInt16(6, +form.x_m.value || 0, true);
     dv.setInt16(8, +form.y_m.value || 0, true);
     dv.setInt16(10, +form.z_m.value || 0, true);
